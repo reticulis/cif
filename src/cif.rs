@@ -1,21 +1,47 @@
-enum KEYWORDS {
-    Version(&'static str),
-    Size(&'static str),
-    Width(&'static str),
-    Height(&'static str),
-    Bpp(&'static str),
-    Metadata(&'static str)
+use std::collections::HashMap;
+use std::fs::File;
+use std::io::BufReader;
+use phf::phf_map;
+use super::values::*;
+
+pub static POLISH_KEYWORDS: phf::Map<&'static str, KEYWORDS> = phf_map! {
+    "CIF" => KEYWORDS::Cif,
+    "WERSJA" => KEYWORDS::Version,
+    "ROZMIAR" => KEYWORDS::Size(0),
+    "szerokość:" => KEYWORDS::Width(0),
+    "wysokość:" => KEYWORDS::Height(0),
+    "bitów_na_piksel:" => KEYWORDS::Bpp(0),
+    "METADANE" => KEYWORDS::Metadata
+};
+
+struct Cif {
+    line: &'static str
 }
 
-const POLISH_KEYWORDS: [KEYWORDS; 6] = [
-    KEYWORDS::Version("WERSJA"),
-    KEYWORDS::Size("ROZMIAR"),
-    KEYWORDS::Width("szerokość"),
-    KEYWORDS::Height("wysokość"),
-    KEYWORDS::Bpp("bitów_na_pixel"),
-    KEYWORDS::Metadata("METADANE")
-];
+impl Cif {
+    fn new(line: &'static str) -> Cif {
+        Cif {
+            line
+        }
+    }
+    fn parse_size() -> KEYWORDS {
+        unimplemented!()
+    }
+    fn parse_height() -> KEYWORDS {
+        unimplemented!()
+    }
 
-pub fn parse(line: String) {
+    fn parse_width() -> KEYWORDS {
+        unimplemented!()
+    }
+
+    fn parse_bpp() -> KEYWORDS {
+        unimplemented!()
+    }
 
 }
+
+pub fn parse(line: &str) -> KEYWORDS {
+    unimplemented!()
+}
+
