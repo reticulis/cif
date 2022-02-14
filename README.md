@@ -15,10 +15,10 @@ RUSTFLAGS="-C target-cpu=native --emit=asm" cargo build --release
 CPU: Intel Xeon E3-1240 V2 \
 Kernel: Linux 5.16.8 XANMOD
 
-With clang optimization flags:
+With rustc optimization flags:
 ![with_flags](with_flags.png)
 
-Without clang optimization flags:
+Without rustc optimization flags:
 ![without_flags](without_flags.png)
 
 I used CIF files from https://github.com/comes-group/cif-tests
