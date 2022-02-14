@@ -8,3 +8,9 @@ edition = "2021"
 [dependencies]
 phf = { version = "0.10", features = ["macros"] }
 image = "0.24.0"
+mimalloc = { version = "0.1.27", default-features = false }
+
+[profile.release]
+lto = "fat"
+codegen-units = 1
+panic = "abort"

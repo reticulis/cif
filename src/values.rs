@@ -6,7 +6,12 @@ pub enum KEYWORDS {
     Size,
     Metadata,
     Empty,
-    End
+    End,
+}
+
+pub enum BPP {
+    B24,
+    B32,
 }
 
 pub static POLISH_KEYWORD: [&'static str; 7] = [
