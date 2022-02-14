@@ -14,6 +14,8 @@ pub enum BPP {
     B32,
 }
 
+pub const ERR_PARSE: &str = "Error parsing the file!: ";
+
 pub static POLISH_KEYWORD: [&'static str; 7] = [
     "CIF: ",
     "WERSJA ",

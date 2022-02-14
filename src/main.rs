@@ -7,8 +7,7 @@ use std::process::exit;
 mod cif;
 mod values;
 use crate::cif::Cif;
-use crate::values::BPP;
-use values::KEYWORDS;
+use crate::values::{BPP, ERR_PARSE, KEYWORDS};
 
 struct Decoder {
     file: File,
@@ -66,6 +65,7 @@ impl Decoder {
         let mut metadata = false;
         let mut size = false;
         let mut end = false;
+        let mut i = 0;
 
         let mut buf_rgb = Vec::new();
         let mut buf_rgba = Vec::new();
@@ -78,30 +78,24 @@ impl Decoder {
                         match cif.parse(metadata) {
                             KEYWORDS::Cif => {
                                 if cif_b {
-                                    {
-                                        println!("Error parsing the file! KEYWORDS::Cif");
-                                        exit(1)
-                                    }
+                                    println!("{}{}", ERR_PARSE, s);
+                                    exit(1)
                                 }
                                 cif.spell_check(KEYWORDS::Cif);
                                 cif_b = true;
                             }
                             KEYWORDS::Version => {
                                 if version {
-                                    {
-                                        println!("Error parsing the file!: KEYWORDS::Version");
-                                        exit(1)
-                                    }
+                                    println!("{}{}", ERR_PARSE, s);
+                                    exit(1)
                                 }
                                 cif.spell_check(KEYWORDS::Version);
                                 version = true;
                             }
                             KEYWORDS::Size => {
                                 if size {
-                                    {
-                                        println!("Error parsing the file! KEYWORDS::Size");
-                                        exit(1)
-                                    }
+                                    println!("{}{}", ERR_PARSE, s);
+                                    exit(1)
                                 }
                                 cif.parse_size(&mut width, &mut height, &mut bpp);
                                 size = true;
@@ -114,6 +108,7 @@ impl Decoder {
                                 continue;
                             }
                             KEYWORDS::End => {
+                                i += 1;
                                 if end {
                                     continue;
                                 }
@@ -125,6 +120,7 @@ impl Decoder {
                             }
                         }
                     } else {
+                        i += 1;
                         match bpp {
                             BPP::B24 => buf_rgb.push(cif.parse_rgb(&bpp)),
                             BPP::B32 => buf_rgba.push(cif.parse_rgba(&bpp)),
@@ -132,16 +128,17 @@ impl Decoder {
                     }
                 }
                 Err(e) => {
-                    println!("Error parsing the file! {}", e);
+                    println!("{}{}", ERR_PARSE, e);
                     exit(1)
                 }
             }
         }
         if !(cif_b && version && end) {
-            {
-                println!("Error parsing the file! cif_b && version && end");
-                exit(1)
-            }
+            println!("Error parsing the file! Not found header \"CIF\" or \"WERSJA\"");
+            exit(1)
+        }
+        if i > 999999 {
+            println!("File without header has more lines than 999999")
         }
         Image {
             width,

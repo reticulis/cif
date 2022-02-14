@@ -14,7 +14,7 @@ impl Cif {
 
     pub fn parse(&self, metadata: bool) -> &KEYWORDS {
         if self.line.starts_with(" ") {
-            println!("Error parsing the file!: cif.rs 18");
+            println!("{}{}", ERR_PARSE, self.line);
             exit(1)
         }
         if &self.line == "" || &self.line == "\n" {
@@ -37,10 +37,8 @@ impl Cif {
         match self.line.contains(";") {
             true => {
                 if !metadata {
-                    {
-                        println!("Error parsing the file! cif.rs 40");
-                        exit(1)
-                    }
+                    println!("{}{}", ERR_PARSE, self.line);
+                    exit(1)
                 } else {
                     return &KEYWORDS::End;
                 }
@@ -48,13 +46,13 @@ impl Cif {
             false => {
                 if !metadata {
                     if self.line.split_whitespace().collect::<Vec<&str>>().len() < 2 {
-                        println!("Error parsing the file! cif.rs 50");
+                        println!("{}{}", ERR_PARSE, self.line);
                         exit(1)
                     } else {
                         &KEYWORDS::Empty
                     }
                 } else {
-                    println!("Error parsing the file! cif.rs 56");
+                    println!("{}{}", ERR_PARSE, self.line);
                     exit(1)
                 }
             }
@@ -74,7 +72,7 @@ impl Cif {
             .join(" ")
             != text
         {
-            println!("Error parsing the file! cif.rs 76");
+            println!("{}{}", ERR_PARSE, self.line);
             exit(1)
         }
     }
@@ -85,28 +83,29 @@ impl Cif {
             Some(w) => match vec.iter().position(|&x| x == POLISH_KEYWORD[5]) {
                 Some(h) => match vec.iter().position(|&x| x == POLISH_KEYWORD[6]) {
                     Some(b) => {
-                        *x += self.get_number(&vec[w + 1..h], ',');
-                        *y += self.get_number(&vec[h + 1..b], ',');
-                        *bpp = match self.get_number(&vec[b + 1..], ',') {
+                        *x += self.get_number(&vec[w + 1..h]);
+                        *y += self.get_number(&vec[h + 1..b]);
+                        *bpp = match self.get_number(&vec[b + 1..]) {
                             24 => BPP::B24,
                             32 => BPP::B32,
                             _ => {
-                                panic!("")
+                                println!("{}{}", ERR_PARSE, self.line);
+                                exit(1)
                             }
                         };
                     }
                     None => {
-                        println!("Error parsing the file! cif.rs 97");
+                        println!("{}{}", ERR_PARSE, self.line);
                         exit(1)
                     }
                 },
                 None => {
-                    println!("Error parsing the file! cif.rs 102");
+                    println!("{}{}", ERR_PARSE, self.line);
                     exit(1)
                 }
             },
             None => {
-                println!("Error parsing the file! cif.rs 107");
+                println!("{}{}", ERR_PARSE, self.line);
                 exit(1)
             }
         }
@@ -116,27 +115,28 @@ impl Cif {
         let words = self.line.split_whitespace().collect::<Vec<&str>>();
         match words.len() {
             1 => {
-                println!("Error parsing the file! cif.rs 117");
+                println!("{}{}", ERR_PARSE, self.line);
                 exit(1)
             }
             2 => {
                 if words[1].contains(":") {
-                    println!("Error parsing the file! cif.rs 123");
+                    println!("{}{}", ERR_PARSE, self.line);
                     exit(1)
                 } else {
                     return false;
                 }
             }
-            _ => {}
-        }
-        if words[1].contains(":") {
-            if words[1].split(":").collect::<Vec<&str>>().len() < 2 {
-                println!("Error parsing the file! cif.rs 135");
-                exit(1)
+            _ => {
+                if words[1].contains(":") {
+                    if words[1].split(":").collect::<Vec<&str>>().len() < 2 {
+                        println!("{}{}", ERR_PARSE, self.line);
+                        exit(1)
+                    }
+                    true
+                } else {
+                    return true;
+                }
             }
-            true
-        } else {
-            return true;
         }
     }
 
@@ -150,13 +150,13 @@ impl Cif {
             match vec.get(x) {
                 Some(&s) => match i == p {
                     true => {
-                        println!("Error parsing the file! cif.rs 154");
+                        println!("{}{}", ERR_PARSE, self.line);
                         exit(1)
                     }
                     false => match s.ends_with(";") {
                         true => {
                             if i == p - 1 {
-                                println!("Error parsing the file! cif.rs 161");
+                                println!("{}{}", ERR_PARSE, self.line);
                                 exit(1)
                             }
                             result[i] += self.polish_number(&s[..s.len() - 1]);
@@ -166,7 +166,7 @@ impl Cif {
                     },
                 },
                 None => {
-                    println!("Error parsing the file! cif.rs 172");
+                    println!("{}{}", ERR_PARSE, self.line);
                     exit(1)
                 }
             }
@@ -183,7 +183,7 @@ impl Cif {
             if x <= 255 {
                 x as u8
             } else {
-                println!("Error parsing the file! cif.rs 181");
+                println!("{}{}", ERR_PARSE, self.line);
                 exit(1)
             }
         })
@@ -199,18 +199,16 @@ impl Cif {
             if x <= 255 {
                 x as u8
             } else {
-                println!("Error parsing the file! cif.rs 181");
+                println!("{}{}", ERR_PARSE, self.line);
                 exit(1)
             }
         })
     }
 
-    fn get_number(&self, arr: &[&str], ch: char) -> u32 {
+    fn get_number(&self, arr: &[&str]) -> u32 {
         if arr.len() < 1 {
-            {
-                println!("Error parsing the file! cif.rs 237");
-                exit(1)
-            }
+            println!("{}{}", ERR_PARSE, self.line);
+            exit(1)
         }
 
         let mut result = 0;
@@ -218,7 +216,7 @@ impl Cif {
         let mut thousand = false;
 
         for i in 0..arr.len() {
-            let arr = match arr[i].ends_with(ch) {
+            let arr = match arr[i].ends_with(",") {
                 true => &arr[i][..arr[i].len() - 1],
                 false => arr[i],
             };
@@ -227,7 +225,7 @@ impl Cif {
                     if result == 0 {
                         match arr == "tysiące" || arr == "tysięcy" {
                             true => {
-                                println!("Error parsing the file! cif.rs 256");
+                                println!("{}{}", ERR_PARSE, self.line);
                                 exit(1)
                             }
                             false => {
@@ -236,14 +234,13 @@ impl Cif {
                             }
                         }
                     } else {
-                        // println!("LAST: {}", last);
                         match thousand
                             || (last < 5 && arr != "tysiące")
                             || (last >= 5 && arr != "tysięcy")
                             || (arr == "tysiąc")
                         {
                             true => {
-                                println!("Error parsing the file! cif.rs");
+                                println!("{}{}", ERR_PARSE, self.line);
                                 exit(1)
                             }
                             false => {
@@ -255,15 +252,12 @@ impl Cif {
                     }
                 }
                 i => {
-                    // println!("i: {}, last: {}",i, last);
                     if last == 0 {
                         last = i;
                     }
                     if i > last {
-                        {
-                            println!("Error parsing the file! cif.rs 289");
-                            exit(1)
-                        }
+                        println!("{}{}", ERR_PARSE, self.line);
+                        exit(1)
                     }
                     last = i;
                     result += i
@@ -285,7 +279,7 @@ impl Cif {
                         None => match ONES.get(arr) {
                             Some(&i) => i,
                             None => {
-                                println!("Error parsing the file! cif.rs 317");
+                                println!("{}{}", ERR_PARSE, self.line);
                                 exit(1)
                             }
                         },
