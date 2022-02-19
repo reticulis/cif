@@ -1,5 +1,6 @@
 use phf::phf_map;
 
+#[derive(Copy, Clone)]
 pub enum KEYWORDS {
     Cif,
     Version,

@@ -1,12 +1,13 @@
-use image::ImageBuffer;
-use std::env::args;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
-use std::process::exit;
 
-mod cif;
+mod modules;
 mod values;
+use crate::args::Args;
 use crate::cif::Cif;
+use modules::*;
+use crate::BPP::B24;
+
 use crate::values::{BPP, ERR_PARSE, KEYWORDS};
 
 struct Decoder {
@@ -24,128 +25,111 @@ struct Image {
 
 impl Decoder {
     fn new(input: String, output: String) -> Decoder {
-        match input.ends_with(".cif") {
-            true => Decoder {
-                file: File::open(input).expect("Error opening the file!"),
-                output,
-            },
-            false => panic!("Input is not CIF file!"),
+        if input.ends_with(".cif") {
+            if output.ends_with(".bmp") || output.ends_with(".png") {
+                Decoder {
+                    file: File::open(input).expect("Error opening the file!"),
+                    output,
+                }
+            } else {
+                panic!("Output is not PNG or BMP file!")
+            }
+        } else {
+            panic!("Input is not a CIF file!")
         }
     }
 
     fn decode(&self) {
         let cif = self.parse();
 
-        match cif.bpp {
-            BPP::B24 => {
-                let mut imgbuf = ImageBuffer::new(cif.width, cif.height);
-                for (pixel, buf) in imgbuf.pixels_mut().zip(cif.buf_rgb) {
-                    *pixel = image::Rgb(buf)
-                }
-                imgbuf.save(&self.output).unwrap();
-            }
-            BPP::B32 => {
-                let mut imgbuf = ImageBuffer::new(cif.width, cif.height);
-                for (pixel, buf) in imgbuf.pixels_mut().zip(cif.buf_rgba) {
-                    *pixel = image::Rgba(buf)
-                }
-                imgbuf.save(&self.output).unwrap();
-            }
-        }
+        // match cif.bpp {
+        //     BPP::B24 => {
+        //         let mut imgbuf = ImageBuffer::new(cif.width, cif.height);
+        //         for (pixel, buf) in imgbuf.pixels_mut().zip(cif.buf_rgb) {
+        //             *pixel = image::Rgb(buf)
+        //         }
+        //         imgbuf.save(&self.output).unwrap();
+        //     }
+        //     BPP::B32 => {
+        //         let mut imgbuf = ImageBuffer::new(cif.width, cif.height);
+        //         for (pixel, buf) in imgbuf.pixels_mut().zip(cif.buf_rgba) {
+        //             *pixel = image::Rgba(buf)
+        //         }
+        //         imgbuf.save(&self.output).unwrap();
+        //     }
+        // }
         println!("SUCCESS!")
     }
 
-    fn parse(&self) -> Image {
+    fn parse(&self) {
         let buf = BufReader::new(&self.file);
 
-        let (mut width, mut height, mut bpp) = (0, 0, BPP::B24);
+        let (mut cif_b, mut version_b, mut size_b, mut metadata_b, mut metadata, mut metadata_num, mut x, mut y, mut bpp) =
+            (false, false, false, false, false, 0, 0, 0, B24);
 
-        let mut cif_b = false;
-        let mut version = false;
-        let mut metadata = false;
-        let mut size = false;
-        let mut end = false;
-        let mut i = 0;
-
-        let mut buf_rgb = Vec::new();
-        let mut buf_rgba = Vec::new();
-
-        for s in buf.lines() {
-            match s {
-                Ok(s) => {
-                    let cif = Cif::new(&s);
-                    if !end {
-                        match cif.parse(metadata) {
-                            KEYWORDS::Cif => {
-                                if cif_b {
-                                    println!("{}{}", ERR_PARSE, s);
-                                    exit(1)
-                                }
-                                cif.spell_check(KEYWORDS::Cif);
-                                cif_b = true;
-                            }
-                            KEYWORDS::Version => {
-                                if version {
-                                    println!("{}{}", ERR_PARSE, s);
-                                    exit(1)
-                                }
-                                cif.spell_check(KEYWORDS::Version);
-                                version = true;
-                            }
-                            KEYWORDS::Size => {
-                                if size {
-                                    println!("{}{}", ERR_PARSE, s);
-                                    exit(1)
-                                }
-                                cif.parse_size(&mut width, &mut height, &mut bpp);
-                                size = true;
-                            }
-                            KEYWORDS::Metadata => {
-                                metadata = cif.parse_metadata();
-                            }
-                            KEYWORDS::Empty => {
-                                metadata = true;
-                                continue;
-                            }
-                            KEYWORDS::End => {
-                                i += 1;
-                                if end {
-                                    continue;
-                                }
-                                end = true;
-                                match bpp {
-                                    BPP::B24 => buf_rgb.push(cif.parse_rgb(&bpp)),
-                                    BPP::B32 => buf_rgba.push(cif.parse_rgba(&bpp)),
-                                }
-                            }
+        for (i, line) in buf.lines().enumerate() {
+            let cif = Cif::new(line.expect("Error reading the file!"));
+            match cif.parse(metadata) {
+                Ok(k) => match k {
+                    KEYWORDS::Cif => {
+                        if cif_b {
+                            panic!("Another line starting with \"CIF\"! \nNumber line: {}", i)
                         }
-                    } else {
-                        i += 1;
-                        match bpp {
-                            BPP::B24 => buf_rgb.push(cif.parse_rgb(&bpp)),
-                            BPP::B32 => buf_rgba.push(cif.parse_rgba(&bpp)),
+                        cif_b = true;
+                        match cif.spell_check(k) {
+                            Ok(()) => (),
+                            Err(e) => panic!("{} Line: {}", e,i)
                         }
                     }
-                }
-                Err(e) => {
-                    println!("{}{}", ERR_PARSE, e);
-                    exit(1)
-                }
+                    KEYWORDS::Version => {
+                        if version_b {
+                            panic!(
+                                "Another line starting with \"VERSION\"! \nNumber line: {}",
+                                i
+                            )
+                        }
+                        version_b = true;
+                        match cif.spell_check(k) {
+                            Ok(()) => (),
+                            Err(e) => panic!("{} Line: {}", e,i)
+                        }
+                    }
+                    KEYWORDS::Size => {
+                        if size_b {
+                            panic!("Another line starting with \"SIZE\"! \nNumber line: {}", i)
+                        }
+                        size_b = true;
+                        match cif.parse_size(&mut x, &mut y, &mut bpp) {
+                            Ok(()) => (),
+                            Err(e) => panic!("{} Line: {}", e,i)
+                        }
+                    }
+                    KEYWORDS::Metadata => {
+                        metadata_b = true;
+                        if metadata_num == 2 {
+                            panic!(
+                                "Another line starting with \"METADATA\"! \nNumber line: {}",
+                                i
+                            )
+                        }
+                        match cif.parse_metadata() {
+                            Ok(t) => metadata = t,
+                            Err(e) => panic!("{} Line: {}", e, i),
+                        }
+                        metadata_num += 1;
+                    }
+                    KEYWORDS::Empty => {}
+                    KEYWORDS::End => {
+                        if cif_b || version_b || metadata_b || size_b {
+                            // parse asd
+                            break
+                        } else {
+                            panic!("PANIKA!")
+                        }
+                    }
+                },
+                Err(e) => panic!("{}", e),
             }
-        }
-        if !(cif_b && version && end) {
-            println!("Error parsing the file! Not found header \"CIF\" or \"WERSJA\"");
-            exit(1)
-        }
-        if i > 999999 {
-            println!("File without header has more lines than 999999")
-        }
-        Image {
-            width,
-            height,
-            bpp,
-            buf_rgb,
-            buf_rgba,
         }
     }
 }
@@ -154,17 +138,9 @@ fn main() {
     #[global_allocator]
     static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
 
-    let args = args().collect::<Vec<String>>();
-    let input = match args.get(1) {
-        Some(s) => s.to_owned(),
-        None => panic!("Error reading input!"),
-    };
-    let output = match args.get(2) {
-        Some(s) => s.to_owned(),
-        None => panic!("Error reading output!"),
-    };
+    let args = Args::new();
 
-    let decoder = Decoder::new(input, output);
+    let decoder = Decoder::new(args.input, args.output);
 
     decoder.decode()
 }
