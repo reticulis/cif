@@ -37,7 +37,7 @@ impl Cif {
             }
         } else {
             if metadata {
-                if self.line.split_whitespace().collect::<Vec<&str>>().len() < 2 {
+                if self.line.split_ascii_whitespace().collect::<Vec<&str>>().len() < 2 {
                     Err("Error parsing the file!")
                 } else {
                     Ok(KEYWORDS::Empty)
@@ -56,7 +56,7 @@ impl Cif {
         };
         if self
             .line
-            .split_whitespace()
+            .split_ascii_whitespace()
             .collect::<Vec<&str>>()
             .join(" ")
             != text
@@ -67,7 +67,7 @@ impl Cif {
     }
 
     pub fn parse_metadata(&self) -> Result<bool, &str> {
-        let words = self.line.split_whitespace().collect::<Vec<&str>>();
+        let words = self.line.split_ascii_whitespace().collect::<Vec<&str>>();
         match words.len() {
             1 => Err(ERR_PARSE),
             2 => {
@@ -89,49 +89,41 @@ impl Cif {
             }
         }
     }
-    pub fn parse_size(&self, x: &mut u32, y: &mut u32, bpp: &mut BPP) -> Result<(), &str> {
-        let vec = self.line.split_whitespace().skip(1).collect::<Vec<&str>>();
+    pub fn parse_size(&self, x: &mut u32, y: &mut u32, bpp: &mut u32) -> Result<(), &str> {
+        let vec = self.line.split_ascii_whitespace().skip(1).collect::<Vec<&str>>();
         match vec.iter().position(|&x| x == POLISH_KEYWORD[4]) {
             Some(w) => match vec.iter().position(|&x| x == POLISH_KEYWORD[5]) {
                 Some(h) => match vec.iter().position(|&x| x == POLISH_KEYWORD[6]) {
                     Some(b) => {
                         *x += match self.get_number(&vec[w + 1..h]) {
                             Ok(n) => n,
-                            Err(e) => return Err(e)
+                            Err(e) => return Err(e),
                         };
                         *y += match self.get_number(&vec[h + 1..b]) {
                             Ok(n) => n,
-                            Err(e) => return Err(e)
+                            Err(e) => return Err(e),
                         };
                         *bpp = match self.get_number(&vec[b + 1..]) {
                             Ok(n) => match n {
-                                24 => BPP::B24,
-                                32 => BPP::B32,
-                                _ => {
-                                    return Err(ERR_PARSE)
-                                }
+                                24 => 3,
+                                32 => 4,
+                                _ => return Err(ERR_PARSE),
                             },
-                            Err(e) => return Err(e)
+                            Err(e) => return Err(e),
                         };
                     }
-                    None => {
-                        return Err(ERR_PARSE)
-                    }
+                    None => return Err(ERR_PARSE),
                 },
-                None => {
-                    return Err(ERR_PARSE)
-                }
+                None => return Err(ERR_PARSE),
             },
-            None => {
-                return Err(ERR_PARSE)
-            }
+            None => return Err(ERR_PARSE),
         }
         Ok(())
     }
 
     fn get_number(&self, arr: &[&str]) -> Result<u32, &str> {
         if arr.len() < 1 {
-            return Err(ERR_PARSE)
+            return Err(ERR_PARSE);
         }
 
         let mut result = 0;
@@ -141,10 +133,8 @@ impl Cif {
         for i in 0..arr.len() {
             let arr = match arr[i].ends_with(",") {
                 true => match arr.get(i) {
-                    Some(&s) => {
-                        &s[..s.len()-1]
-                    }
-                    None => panic!("asd")
+                    Some(&s) => &s[..s.len() - 1],
+                    None => panic!("asd"),
                 },
                 false => arr.get(i).unwrap(),
             };
@@ -188,86 +178,77 @@ impl Cif {
                 Err(e) => return Err(e),
             }
         }
-        return Ok(result)
+        return Ok(result);
     }
 
-    fn rgb(&self, bpp: &BPP, vec: &Vec<&str>, result: &mut [u8]) -> Result<(), &str> {
+    fn rgb(&self, bpp: usize, vec: &Vec<&str>, result: &mut [u8]) {
         let mut i = 0;
-        let p = match bpp {
-            BPP::B24 => 3,
-            BPP::B32 => 4,
-        };
         for x in 0..vec.len() {
             match vec.get(x) {
-                Some(&s) => match i == p {
+                Some(&s) => match i == bpp {
                     true => {
-                        return Err(ERR_PARSE)
+                        panic!("{}", ERR_PARSE)
                     }
                     false => match s.ends_with(";") {
                         true => {
-                            if i == p - 1 {
-                                return Err(ERR_PARSE)
+                            if i == bpp - 1 {
+                                panic!("{}", ERR_PARSE)
                             }
-                            match result.get(i) {
-                                Some(&(mut l)) => l += match self.polish_number(&s[..s.len() - 1]) {
-                                    Ok(u) => if u <= 255 { u as u8 } else {return Err(ERR_PARSE)} ,
-                                    Err(e) => return Err(e)
-                                },
-                                None => return Err(ERR_PARSE)
-                            }
+                            result[i] += match self.polish_number(&s[..s.len() - 1]) {
+                                Ok(u) => {
+                                    if u <= 255 {
+                                        u as u8
+                                    } else {
+                                        panic!("{}", ERR_PARSE)
+                                    }
+                                }
+                                Err(_) => panic!("{}", ERR_PARSE),
+                            };
                             i += 1
                         }
-                        false => match result.get(i) {
-                            Some(&(mut l)) => l += match self.polish_number(&s[..s.len() - 1]) {
-                                Ok(u) => if u <= 255 { u as u8 } else {return Err(ERR_PARSE)} ,
-                                Err(e) => return Err(e)
-                            },
-                            None => return Err(ERR_PARSE)
-                        },
+                        false => {
+                            result[i] += match self.polish_number(s) {
+                                Ok(u) => {
+                                    if u <= 255 {
+                                        u as u8
+                                    } else {
+                                        panic!("{}", ERR_PARSE)
+                                    }
+                                }
+                                Err(_) => panic!("{}", ERR_PARSE),
+                            }
+                        }
                     },
                 },
                 None => {
-                    return Err(ERR_PARSE)
+                    panic!("{}", ERR_PARSE)
                 }
             }
         }
-        Ok(())
     }
 
-    pub fn parse_rgba(&self, bpp: &BPP) -> Result<[u8; 4], &str> {
-        let vec = &self.line.split_whitespace().collect::<Vec<&str>>();
+    pub fn parse_rgba(&self) -> [u8; 4] {
+        let vec = &self.line.split_ascii_whitespace().collect::<Vec<&str>>();
         let mut result: [u8; 4] = [0, 0, 0, 0];
 
-        self.rgb(bpp, &vec, &mut result)?;
+        self.rgb(4, &vec, &mut result);
 
-        Ok(result)
+        result
     }
 
-    pub fn parse_rgb(&self, bpp: &BPP) -> Result<[u8; 3], &str> {
-        let vec = &self.line.split_whitespace().collect::<Vec<&str>>();
+    pub fn parse_rgb(&self) -> [u8; 3] {
+        let vec = &self.line.split_ascii_whitespace().collect::<Vec<&str>>();
         let mut result: [u8; 3] = [0, 0, 0];
 
-        self.rgb(bpp, vec, &mut result)?;
+        self.rgb(3, vec, &mut result);
 
-        Ok(result)
+        result
     }
 
     fn polish_number(&self, arr: &str) -> Result<u32, &str> {
-        match THOUSAND.get(arr) {
+        match POL.get(arr) {
             Some(&i) => Ok(i),
-            None => match HUNDREDS.get(arr) {
-                Some(&i) => Ok(i),
-                None => match NTENS.get(arr) {
-                    Some(&i) => Ok(i),
-                    None => match TENS.get(arr) {
-                        Some(&i) => Ok(i),
-                        None => match ONES.get(arr) {
-                            Some(&i) => Ok(i),
-                            None => Err(ERR_PARSE),
-                        },
-                    },
-                },
-            },
+            None => Err(ERR_PARSE)
         }
     }
 }

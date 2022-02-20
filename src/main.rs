@@ -1,3 +1,4 @@
+use image::ImageBuffer;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
 
@@ -6,9 +7,8 @@ mod values;
 use crate::args::Args;
 use crate::cif::Cif;
 use modules::*;
-use crate::BPP::B24;
 
-use crate::values::{BPP, ERR_PARSE, KEYWORDS};
+use crate::values::KEYWORDS;
 
 struct Decoder {
     file: File,
@@ -18,7 +18,7 @@ struct Decoder {
 struct Image {
     width: u32,
     height: u32,
-    bpp: BPP,
+    bpp: u32,
     buf_rgb: Vec<[u8; 3]>,
     buf_rgba: Vec<[u8; 4]>,
 }
@@ -42,33 +42,49 @@ impl Decoder {
     fn decode(&self) {
         let cif = self.parse();
 
-        // match cif.bpp {
-        //     BPP::B24 => {
-        //         let mut imgbuf = ImageBuffer::new(cif.width, cif.height);
-        //         for (pixel, buf) in imgbuf.pixels_mut().zip(cif.buf_rgb) {
-        //             *pixel = image::Rgb(buf)
-        //         }
-        //         imgbuf.save(&self.output).unwrap();
-        //     }
-        //     BPP::B32 => {
-        //         let mut imgbuf = ImageBuffer::new(cif.width, cif.height);
-        //         for (pixel, buf) in imgbuf.pixels_mut().zip(cif.buf_rgba) {
-        //             *pixel = image::Rgba(buf)
-        //         }
-        //         imgbuf.save(&self.output).unwrap();
-        //     }
-        // }
+        match cif.bpp {
+            3 => {
+                let mut imgbuf = ImageBuffer::new(cif.width, cif.height);
+                for (pixel, buf) in imgbuf.pixels_mut().zip(cif.buf_rgb) {
+                    *pixel = image::Rgb(buf)
+                }
+                imgbuf.save(&self.output).unwrap();
+            }
+            4 => {
+                let mut imgbuf = ImageBuffer::new(cif.width, cif.height);
+                for (pixel, buf) in imgbuf.pixels_mut().zip(cif.buf_rgba) {
+                    *pixel = image::Rgba(buf)
+                }
+                imgbuf.save(&self.output).unwrap();
+            }
+            _ => {}
+        }
         println!("SUCCESS!")
     }
 
-    fn parse(&self) {
+    fn parse(&self) -> Image {
         let buf = BufReader::new(&self.file);
 
-        let (mut cif_b, mut version_b, mut size_b, mut metadata_b, mut metadata, mut metadata_num, mut x, mut y, mut bpp) =
-            (false, false, false, false, false, 0, 0, 0, B24);
+        let (
+            mut cif_b,
+            mut version_b,
+            mut size_b,
+            mut metadata_b,
+            mut metadata,
+            mut metadata_num,
+            mut width,
+            mut height,
+            mut bpp,
+            mut skip,
+        ) = (false, false, false, false, false, 0, 0, 0, 0, 0);
+
+        let mut buf_rgb = Vec::new();
+        let mut buf_rgba = Vec::new();
 
         for (i, line) in buf.lines().enumerate() {
+            skip += 1;
             let cif = Cif::new(line.expect("Error reading the file!"));
+
             match cif.parse(metadata) {
                 Ok(k) => match k {
                     KEYWORDS::Cif => {
@@ -78,7 +94,7 @@ impl Decoder {
                         cif_b = true;
                         match cif.spell_check(k) {
                             Ok(()) => (),
-                            Err(e) => panic!("{} Line: {}", e,i)
+                            Err(e) => panic!("{} Line: {}", e, i),
                         }
                     }
                     KEYWORDS::Version => {
@@ -91,7 +107,7 @@ impl Decoder {
                         version_b = true;
                         match cif.spell_check(k) {
                             Ok(()) => (),
-                            Err(e) => panic!("{} Line: {}", e,i)
+                            Err(e) => panic!("{} Line: {}", e, i),
                         }
                     }
                     KEYWORDS::Size => {
@@ -99,9 +115,9 @@ impl Decoder {
                             panic!("Another line starting with \"SIZE\"! \nNumber line: {}", i)
                         }
                         size_b = true;
-                        match cif.parse_size(&mut x, &mut y, &mut bpp) {
+                        match cif.parse_size(&mut width, &mut height, &mut bpp) {
                             Ok(()) => (),
-                            Err(e) => panic!("{} Line: {}", e,i)
+                            Err(e) => panic!("{} Line: {}", e, i),
                         }
                     }
                     KEYWORDS::Metadata => {
@@ -121,15 +137,41 @@ impl Decoder {
                     KEYWORDS::Empty => {}
                     KEYWORDS::End => {
                         if cif_b || version_b || metadata_b || size_b {
-                            // parse asd
-                            break
+                            match bpp {
+                                3 => buf_rgb.push(cif.parse_rgb()),
+                                4 => buf_rgba.push(cif.parse_rgba()),
+                                _ => {
+                                    panic!("")
+                                }
+                            }
+                            break;
                         } else {
-                            panic!("PANIKA!")
+                            panic!("")
                         }
                     }
                 },
                 Err(e) => panic!("{}", e),
             }
+        }
+
+        let buf = BufReader::new(&self.file);
+
+        for line in buf.lines().skip(skip) {
+            let cif = Cif::new(line.expect("Error reading the file!"));
+            match bpp {
+                3 => buf_rgb.push(cif.parse_rgb()),
+                4 => buf_rgba.push(cif.parse_rgba()),
+                _ => {
+                    panic!("")
+                }
+            }
+        }
+        Image {
+            width,
+            height,
+            bpp,
+            buf_rgba,
+            buf_rgb,
         }
     }
 }
